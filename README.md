@@ -171,6 +171,110 @@ rm -f ~/Library/Caches/スクショ窓口/.pid
 
 ---
 
+## Claude Code / AI による自動セットアップ
+
+このREADMEを Claude Code や ChatGPT などの AI ツールに読み込ませてセットアップを自動化できます。**人間が GUI で「右クリック→開く」する代わりに、ターミナルでコマンド実行で完結**します。
+
+### 前提条件
+- `スクショ窓口配布.zip` が `~/Downloads/` にダウンロード済み
+- macOS 13 (Ventura) 以降
+- 管理者パスワード不要（`/Applications` 書き込み可能な前提）
+
+### 自動セットアップ手順
+
+以下のコマンドを順番に実行してください。AIツールに「このREADMEを読んで実行して」と頼めば、これを順に走らせます。
+
+```bash
+# 1. zip 解凍
+cd ~/Downloads && unzip -o スクショ窓口配布.zip
+
+# 2. /Applications にインストール（既存があれば上書き）
+[ -d /Applications/スクショ窓口.app ] && rm -rf /Applications/スクショ窓口.app
+cp -R ~/Downloads/スクショ窓口配布/スクショ窓口.app /Applications/
+
+# 3. Gatekeeper の quarantine 属性を削除（「右クリック→開く」と同等の効果）
+xattr -dr com.apple.quarantine /Applications/スクショ窓口.app
+
+# 4. アプリ起動
+open /Applications/スクショ窓口.app
+
+# 5. プロセス確認（成功すれば PID と app パスが返る）
+sleep 3 && pgrep -fl "スクショ窓口.app"
+```
+
+### 初回起動の同意ダイアログを自動で「設定する」にする
+
+`open` 直後に「スクショ窓口へようこそ」ダイアログが出ます。手動で「設定する」を押すか、以下のコマンドで自動押下します（**同意の意思がある場合のみ実行**）：
+
+```bash
+# AppleScript で Return キー押下（デフォルトボタン=「設定する」を押す）
+sleep 2 && osascript -e 'tell application "System Events" to keystroke return'
+```
+
+### 動作確認
+
+```bash
+# 保存先設定が変更されたか
+defaults read com.apple.screencapture location
+# 期待値: /Users/<USER>/Pictures/スクショ窓口
+
+# 撮影直後プレビューが無効になったか
+defaults read com.apple.screencapture show-thumbnail
+# 期待値: 0
+
+# テスト撮影（screencapture コマンドで擬似スクショ）
+screencapture -x ~/Pictures/スクショ窓口/test_capture.png
+sleep 2
+
+# インデックスに反映されたか
+cat ~/Library/Application\ Support/スクショ窓口/index.json
+# JSONに test_capture.png が含まれていれば成功
+```
+
+### BTT などでホットキー設定（オプション）
+
+ホットキーは **手動で BetterTouchTool 等の設定が必要** です（Claude Code が直接設定はできない）。
+任意のキーに以下のシェルスクリプトを割り当てると、そのキーで窓口を開閉できます：
+
+```bash
+touch "$HOME/Library/Caches/スクショ窓口/.toggle_request"
+```
+
+### 完全アンインストール
+
+```bash
+# 1. アプリ終了
+pkill -f "スクショ窓口" 2>/dev/null
+
+# 2. macOS設定を元に戻す
+defaults write com.apple.screencapture location ~/Desktop
+defaults write com.apple.screencapture show-thumbnail -bool true
+killall SystemUIServer
+
+# 3. アプリとアプリデータを削除
+rm -rf /Applications/スクショ窓口.app
+rm -rf ~/Library/Caches/スクショ窓口
+rm -rf ~/Library/Application\ Support/スクショ窓口
+
+# 注意: ~/Pictures/スクショ窓口/ には撮影済みのファイルがあります。
+# 必要に応じて手動でゴミ箱へ移動してください：
+# mv ~/Pictures/スクショ窓口 ~/.Trash/
+```
+
+### トラブル時の自動診断コマンド
+
+```bash
+# 状態スナップショット（Claude Code に貼って原因相談する用）
+echo "=== プロセス ==="; pgrep -fl "スクショ窓口"
+echo "=== 保存先 ==="; defaults read com.apple.screencapture location 2>&1
+echo "=== プレビュー設定 ==="; defaults read com.apple.screencapture show-thumbnail 2>&1
+echo "=== ログ末尾 ==="; tail -20 ~/bin/screenshot_window.log 2>&1 || echo "ログなし"
+echo "=== インデックス件数 ==="; python3 -c "import json; print(len(json.load(open('$HOME/Library/Application Support/スクショ窓口/index.json'))))" 2>&1
+echo "=== 保存先のファイル数 ==="; ls ~/Pictures/スクショ窓口/ 2>&1 | wc -l
+```
+
+---
+
 ## ライセンス・配布元
 
 著作権：© 2026 shimesapo

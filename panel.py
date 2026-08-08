@@ -35,6 +35,29 @@ SEARCH_BAR_HEIGHT = 36
 TOP_BUTTON_HEIGHT = 32  # 一括削除ボタン用
 
 
+def alert_front(title, message, ok="OK", cancel=None, panel_window=None):
+    """パネル(level 25)の裏に隠れない確認ダイアログ。rumps.alert互換の戻り値（OK=1・キャンセル=0）。
+    NSAlert.runModal はモーダルパネルレベル(8)で出るため、前面固定(25)のパネルの裏に隠れる不具合があった。
+    ダイアログ側のsetLevelはrunModalに上書きされて効かない（実測）ので、
+    確認中だけパネルを通常レベルに下げ、閉じたら25に戻す方式で確実に前に出す。"""
+    from AppKit import NSAlert, NSApp
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_(title)
+    alert.setInformativeText_(message)
+    alert.addButtonWithTitle_(ok)
+    if cancel:
+        alert.addButtonWithTitle_(cancel)
+    if panel_window is not None:
+        panel_window.setLevel_(0)  # NSNormalWindowLevel: モーダル(8)より下げる
+    try:
+        NSApp.activateIgnoringOtherApps_(True)
+        response = alert.runModal()  # 最初のボタン=1000 (NSAlertFirstButtonReturn)
+    finally:
+        if panel_window is not None:
+            panel_window.setLevel_(25)  # 元の前面固定に戻す
+    return 1 if response == 1000 else 0
+
+
 class DraggableImageView(NSImageView):
     """ドラッグ&ドロップ + ホバー削除ボタン + ダブルクリック Quick Look"""
 
@@ -290,13 +313,12 @@ class ScreenshotPanel(NSObject):
 
     @objc.python_method
     def confirm_and_delete_all(self) -> None:
-        """rumps.alert で確認 → delete_all（ゴミ箱送り、復元可能）"""
-        import rumps as _rumps
+        """alert_front で確認 → delete_all（ゴミ箱送り、復元可能）"""
         total = len(index.get_all())
         if total == 0:
-            _rumps.alert(title="スクショ窓口", message="窓口は既に空です。")
+            alert_front("スクショ窓口", "窓口は既に空です。", panel_window=self.window)
             return
-        response = _rumps.alert(
+        response = alert_front(
             title="全部ゴミ箱に送る",
             message=(
                 f"窓口の {total} 件すべてをゴミ箱に送ります。\n"
@@ -305,6 +327,7 @@ class ScreenshotPanel(NSObject):
             ),
             ok="実行",
             cancel="キャンセル",
+            panel_window=self.window,
         )
         if response != 1:
             return

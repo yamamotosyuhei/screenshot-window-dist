@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""スクショ窓口 メニューバーアプリ"""
+"""スクショ窓口 メニューバーアプリ（配布版）"""
 import fcntl
 import os
 import subprocess
@@ -18,6 +18,8 @@ TOGGLE_FLAG = paths.CACHE_DIR / ".toggle_request"
 # 二重起動防止用のPIDロックファイル
 PID_LOCK = paths.CACHE_DIR / ".pid"
 _lock_fd = None  # flockを保持し続けるためのfd（プロセス生存中は開いたままにする）
+# 初回セットアップ完了フラグ（同意ダイアログを2回目以降出さないため）
+SETUP_FLAG = paths.SUPPORT_DIR / "setup_completed.flag"
 
 
 def _acquire_lock_or_exit() -> None:
@@ -48,6 +50,24 @@ def log(msg: str) -> None:
         f.write(line + "\n")
 
 
+def _show_setup_dialog() -> bool:
+    """初回起動時の同意ダイアログ。rumps.alert（NSAlert）でメインスレッド安全。「設定する」=True"""
+    response = rumps.alert(
+        title="スクショ窓口 初回設定",
+        message=(
+            "スクショ窓口へようこそ。\n\n"
+            "アプリの動作のため、次の2点をmacOSに設定します:\n"
+            "・スクリーンショット保存先 → ~/Pictures/スクショ窓口/\n"
+            "・撮影直後の純正プレビュー → 無効（即ファイル保存に切り替え）\n\n"
+            "メニューの「アンインストール」からいつでも元に戻せます。\n\n"
+            "設定しますか？"
+        ),
+        ok="設定する",
+        cancel="設定しない",
+    )
+    return response == 1
+
+
 class ScreenshotWindowApp(rumps.App):
     def __init__(self):
         super().__init__("🖼️", quit_button=None)
@@ -59,6 +79,7 @@ class ScreenshotWindowApp(rumps.App):
             None,
             rumps.MenuItem("窓口を全部ゴミ箱に送る", callback=self.confirm_clear_all),
             None,
+            rumps.MenuItem("アンインストール（macOS設定を戻す）", callback=self.uninstall),
             rumps.MenuItem("終了", callback=self.quit_app),
         ]
         self.panel = None
@@ -66,41 +87,116 @@ class ScreenshotWindowApp(rumps.App):
         self._toggle_timer = rumps.Timer(self._check_toggle_flag, 0.5)
 
     def setup(self):
-        # フォルダ準備
-        paths.SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-        paths.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        paths.SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
+        # フォルダ準備（致命的：失敗したら終了）
+        try:
+            paths.SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+            paths.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            paths.SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            log(f"フォルダ準備失敗: {type(e).__name__}: {e}")
+            rumps.alert(
+                title="スクショ窓口 — 起動エラー",
+                message=(
+                    f"必要なフォルダの作成に失敗しました。\n\n"
+                    f"{type(e).__name__}: {e}\n\n"
+                    f"~/Pictures、~/Library/Caches、~/Library/Application Support の書き込み権限を確認してください。"
+                ),
+            )
+            rumps.quit_application()
+            return
 
-        # 起動時に古いフラグが残ってたら消す（前回終了時の取りこぼし対策）
+        # 起動時に古いフラグが残ってたら消す
         if TOGGLE_FLAG.exists():
             try:
                 TOGGLE_FLAG.unlink()
             except OSError:
                 pass
 
-        # macOSスクショ保存先を窓口フォルダに設定（変更されてれば）
-        current = settings.get_screenshot_location()
-        if current != paths.SCREENSHOT_DIR:
-            log(f"スクショ保存先を変更: {current} → {paths.SCREENSHOT_DIR}")
-            settings.set_screenshot_location(paths.SCREENSHOT_DIR)
+        # 初回セットアップ：同意ダイアログ
+        if not SETUP_FLAG.exists():
+            log("初回起動：同意ダイアログを表示")
+            if not _show_setup_dialog():
+                log("ユーザーが設定を辞退 → アプリ終了")
+                if PID_LOCK.exists():
+                    try:
+                        PID_LOCK.unlink()
+                    except OSError:
+                        pass
+                sys.exit(0)
+            # 同意 → 設定実行（失敗してもアプリは起動を続ける）
+            log("初回セットアップ：保存先変更 + 純正プレビュー無効化")
+            try:
+                settings.set_screenshot_location(paths.SCREENSHOT_DIR)
+                if settings.get_show_thumbnail():
+                    settings.set_show_thumbnail(False)
+                SETUP_FLAG.write_text("done")
+            except Exception as e:
+                log(f"初回セットアップの macOS設定変更失敗: {type(e).__name__}: {e}")
+                rumps.alert(
+                    title="スクショ窓口 — macOS設定の変更に失敗",
+                    message=(
+                        f"macOSの設定変更でエラーが起きました。\n\n"
+                        f"{type(e).__name__}: {e}\n\n"
+                        f"アプリ自体は起動しますが、撮影したスクショは自動で窓口に入りません。\n"
+                        f"後でメニューの「保存先設定を確認」から状態を見られます。"
+                    ),
+                )
+        else:
+            # 2回目以降：設定がずれてたら直す（同意ダイアログは出さない）
+            try:
+                current = settings.get_screenshot_location()
+                if current != paths.SCREENSHOT_DIR:
+                    log(f"スクショ保存先を再設定: {current} → {paths.SCREENSHOT_DIR}")
+                    settings.set_screenshot_location(paths.SCREENSHOT_DIR)
+                if settings.get_show_thumbnail():
+                    log("純正プレビューを無効化")
+                    settings.set_show_thumbnail(False)
+            except Exception as e:
+                log(f"macOS設定の同期失敗: {type(e).__name__}: {e}")
+                # 致命ではないので続行
 
-        # macOS純正の撮影直後プレビューを無効化（即ファイル保存→窓口に即反映するため）
-        if settings.get_show_thumbnail():
-            log("macOS純正プレビューを無効化")
-            settings.set_show_thumbnail(False)
+        # パネル作成（致命的：失敗したら終了）
+        try:
+            self.panel = ScreenshotPanel.alloc().init()
+        except Exception as e:
+            import traceback
+            log(f"パネル作成失敗: {type(e).__name__}: {e}")
+            log(traceback.format_exc())
+            rumps.alert(
+                title="スクショ窓口 — 起動エラー",
+                message=(
+                    f"パネルの初期化に失敗しました。\n\n"
+                    f"{type(e).__name__}: {e}\n\n"
+                    f"このメッセージを開発者に伝えてください。"
+                ),
+            )
+            rumps.quit_application()
+            return
 
-        # パネル作成
-        self.panel = ScreenshotPanel.alloc().init()
+        # ファイル監視開始（非致命：失敗してもメニュー操作は可能）
+        try:
+            self.watcher = Watcher(
+                on_change=self._on_files_changed,
+                on_added=self._on_file_added,
+            )
+            self.watcher.initial_scan()
+            self.watcher.start()
+        except Exception as e:
+            import traceback
+            log(f"ファイル監視起動失敗: {type(e).__name__}: {e}")
+            log(traceback.format_exc())
+            rumps.alert(
+                title="スクショ窓口 — 一部機能エラー",
+                message=(
+                    f"ファイル監視の起動に失敗しました。\n\n"
+                    f"{type(e).__name__}: {e}\n\n"
+                    f"撮影したスクショの自動取り込みは動きませんが、\n"
+                    f"~/Pictures/スクショ窓口/ に手動でファイルを置けば次回起動時に取り込まれます。"
+                ),
+            )
+            self.watcher = None
 
-        # ファイル監視開始
-        self.watcher = Watcher(
-            on_change=self._on_files_changed,
-            on_added=self._on_file_added,
-        )
-        self.watcher.initial_scan()
-        self.watcher.start()
-
-        # トグル要求の監視タイマー開始（メインスレッドで動く）
+        # トグル要求の監視タイマー開始
         self._toggle_timer.start()
 
         log("スクショ窓口 起動完了")
@@ -119,7 +215,6 @@ class ScreenshotWindowApp(rumps.App):
     def _on_files_changed(self):
         """watcher からのコールバック → パネルが開いてれば再描画"""
         if self.panel and self.panel.is_panel_visible():
-            # メインスレッドで refresh を呼ぶ必要がある
             from AppKit import NSOperationQueue
             NSOperationQueue.mainQueue().addOperationWithBlock_(
                 lambda: self.panel.refresh_panel(self.panel.search_field.stringValue())
@@ -159,11 +254,16 @@ class ScreenshotWindowApp(rumps.App):
             return
         import index
         from panel import alert_front
-        total = len(index.get_all())
+        try:
+            total = len(index.get_all())
+        except Exception as e:
+            log(f"index.get_all 失敗: {e}")
+            alert_front("スクショ窓口", f"インデックス読み込みに失敗しました:\n{e}", panel_window=self.panel.window)
+            return
         if total == 0:
             alert_front("スクショ窓口", "窓口は既に空です。", panel_window=self.panel.window)
             return
-        # 確認中だけパネルを通常レベルに下げる＝ダイアログがパネルの裏に隠れない。戻り値: 1=OK(実行), 0=Cancel
+        # 確認中だけパネルを通常レベルに下げる＝ダイアログがパネルの裏に隠れない
         response = alert_front(
             title="全部ゴミ箱に送る",
             message=(
@@ -175,7 +275,6 @@ class ScreenshotWindowApp(rumps.App):
             cancel="キャンセル",
             panel_window=self.panel.window,
         )
-        log(f"DBG clear-all alert response={response}")
         if response != 1:
             return
         try:
@@ -185,6 +284,47 @@ class ScreenshotWindowApp(rumps.App):
             import traceback
             log(f"ERROR delete_all: {type(e).__name__}: {e}")
             log(traceback.format_exc())
+            alert_front("スクショ窓口", f"削除中にエラーが発生しました:\n{e}", panel_window=self.panel.window)
+
+    def uninstall(self, _):
+        """macOS設定を元に戻す。アプリ自体の削除は手動で /Applications から"""
+        response = rumps.alert(
+            title="アンインストール",
+            message=(
+                "macOSの設定を元に戻します:\n"
+                "・スクリーンショット保存先 → デスクトップ\n"
+                "・撮影直後の純正プレビュー → 有効\n\n"
+                "実行後、アプリを終了します。\n"
+                "アプリ本体は /Applications から手動でゴミ箱へ移動してください。\n\n"
+                "実行しますか？"
+            ),
+            ok="実行",
+            cancel="キャンセル",
+        )
+        if response != 1:
+            return
+        try:
+            settings.restore_default()
+            settings.set_show_thumbnail(True)
+        except Exception as e:
+            log(f"アンインストール処理エラー: {e}")
+            rumps.alert(
+                title="スクショ窓口",
+                message=(
+                    f"macOS設定の復元中にエラーが起きました:\n{e}\n\n"
+                    f"設定を手動で戻す場合：\n"
+                    f"defaults write com.apple.screencapture location ~/Desktop\n"
+                    f"defaults write com.apple.screencapture show-thumbnail -bool true\n"
+                    f"killall SystemUIServer"
+                ),
+            )
+        if SETUP_FLAG.exists():
+            try:
+                SETUP_FLAG.unlink()
+            except OSError:
+                pass
+        log("アンインストール完了 → アプリ終了")
+        self.quit_app(None)
 
     def quit_app(self, _):
         if self.watcher:
@@ -202,7 +342,7 @@ _app = None
 
 
 def _patch_dock_reopen():
-    """rumps内部のNSApplicationDelegateクラスにDockクリック検知を注入"""
+    """rumps内部のNSApplicationDelegateにDockクリック検知を注入（クリックでパネルトグル）"""
     import rumps.rumps as _rumps_internal
 
     def applicationShouldHandleReopen_hasVisibleWindows_(self, app, has_visible_windows):
@@ -217,12 +357,44 @@ def _patch_dock_reopen():
 
 def main():
     global _app
-    _acquire_lock_or_exit()
-    _patch_dock_reopen()
-    _app = ScreenshotWindowApp()
-    # NSPanel生成はメインスレッド必須なので run() 前に同期実行
-    _app.setup()
-    _app.run()
+    # 二重起動防止（致命的：失敗したら exit）
+    try:
+        _acquire_lock_or_exit()
+    except SystemExit:
+        raise
+    except Exception as e:
+        log(f"PIDロック取得失敗: {type(e).__name__}: {e}")
+        sys.exit(1)
+
+    # Dockクリックパッチ（非致命：失敗してもメニューバーは使える）
+    try:
+        _patch_dock_reopen()
+    except Exception as e:
+        log(f"Dockクリックパッチ失敗（メニューバーから操作可能）: {type(e).__name__}: {e}")
+
+    # アプリ本体（致命的）
+    try:
+        _app = ScreenshotWindowApp()
+        _app.setup()
+        _app.run()
+    except SystemExit:
+        raise
+    except Exception as e:
+        import traceback
+        log(f"未捕捉エラー: {type(e).__name__}: {e}")
+        log(traceback.format_exc())
+        try:
+            rumps.alert(
+                title="スクショ窓口 — 致命エラー",
+                message=(
+                    f"{type(e).__name__}: {e}\n\n"
+                    f"ログ: {paths.LOG_PATH}\n"
+                    f"このメッセージを開発者に伝えてください。"
+                ),
+            )
+        except Exception:
+            pass
+        raise
 
 
 if __name__ == "__main__":

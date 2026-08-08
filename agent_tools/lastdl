@@ -1,0 +1,33 @@
+#!/bin/bash
+# lastdl — ダウンロードフォルダの最新ファイルのパスを出力（エージェント用）
+# 使い方: lastdl        → 最新1件（パス TAB 経過時間）
+#         lastdl -n 5   → 直近5件（新しい順）
+# ダウンロード途中ファイル（.crdownload等）と隠しファイルは除外
+DIR="$HOME/Downloads"
+N=1
+while getopts "n:" opt; do
+  case $opt in
+    n) N=$OPTARG ;;
+    *) echo "usage: lastdl [-n 件数]" >&2; exit 2 ;;
+  esac
+done
+
+list=$(ls -t "$DIR" 2>/dev/null | grep -v '^\.' | grep -vE '\.(crdownload|download|part|aria2|tmp)$' | head -n "$N")
+
+if [ -z "$list" ]; then
+  echo "ダウンロードフォルダにファイルがありません: $DIR" >&2
+  exit 1
+fi
+
+now=$(date +%s)
+while IFS= read -r name; do
+  f="$DIR/$name"
+  mt=$(stat -f %m "$f")
+  d=$(( now - mt ))
+  if   [ "$d" -lt 60 ];    then age="${d}秒前"
+  elif [ "$d" -lt 3600 ];  then age="$(( d / 60 ))分前"
+  elif [ "$d" -lt 86400 ]; then age="$(( d / 3600 ))時間前"
+  else                          age="$(( d / 86400 ))日前"
+  fi
+  printf '%s\t%s\n' "$f" "$age"
+done <<< "$list"

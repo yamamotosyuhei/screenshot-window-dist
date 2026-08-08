@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スクショ窓口 説明書</title>
+<style>
+  body { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif; background: #f5f6f8; color: #1c1e21; margin: 0; padding: 24px 16px; line-height: 1.9; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 8px 0 16px; }
+  h2 { font-size: 20px; margin: 36px 0 10px; padding: 6px 12px; background: #2e7d32; color: #fff; border-radius: 8px; }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  section { background: #fff; border-radius: 12px; padding: 4px 24px 18px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  th, td { border: 1px solid #dfe3e8; padding: 8px 10px; text-align: left; }
+  th { background: #f0f2f5; }
+  code { background: #eef0f3; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: #23272e; color: #e8eaed; padding: 12px 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  .warn { background: #fff8e1; border-left: 4px solid #f6b73c; padding: 10px 14px; border-radius: 6px; margin: 10px 0; }
+  .qa dt { font-weight: bold; margin-top: 14px; }
+  .qa dd { margin: 4px 0 0 0; }
+  footer { color: #888; font-size: 13px; margin: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🖼️ スクショ窓口 説明書</h1>
+  <p>インストールがまだの人は、先に「はじめにお読みください_スタートアップガイド.html」をどうぞ。</p>
+
+  <section>
+  <h2>できること</h2>
+  <ul>
+    <li><code>⌘+Shift+3</code> / <code>⌘+Shift+4</code> で撮ったスクショが自動で<b>「窓口」に集約</b>される</li>
+    <li>メニューバーの 🖼️ アイコン or <b>Dockのアイコンクリック</b>で一覧の開閉</li>
+    <li>サムネに<b>マウスを乗せると原寸プレビュー</b></li>
+    <li>サムネを<b>ドラッグして他のアプリにドロップ</b>で送れる（Discord / Slack / メール / Finder 等）</li>
+    <li><b>Cmd+クリックで複数選択</b> → ドラッグで一括送信、× で一括削除</li>
+    <li>「🗑 窓口を全部ゴミ箱に送る」ボタンで全クリア（確認あり・ゴミ箱から復元可能）</li>
+    <li>サムネを<b>ダブルクリック</b>で macOS Quick Look の全画面プレビュー</li>
+    <li>検索ボックスでファイル名・日付の絞り込み</li>
+    <li>データはすべてローカル（クラウド送信なし）</li>
+  </ul>
+  </section>
+
+  <section>
+  <h2>操作方法</h2>
+  <table>
+    <tr><th>操作</th><th>やり方</th></tr>
+    <tr><td>窓口を開く / 閉じる</td><td>メニューバー 🖼️ → 「窓口を開く」 / Dockアイコンをクリック</td></tr>
+    <tr><td>サムネを大きく見る</td><td>サムネにマウスを乗せる</td></tr>
+    <tr><td>他アプリに送る</td><td>サムネをドラッグして対象アプリにドロップ</td></tr>
+    <tr><td>複数選択</td><td>Cmd + クリック（トグル）／ Shift + クリック（追加）</td></tr>
+    <tr><td>複数まとめて送る</td><td>複数選択した状態でどれか1枚をドラッグ</td></tr>
+    <tr><td>1枚削除</td><td>サムネの右上 × ボタン</td></tr>
+    <tr><td>複数まとめて削除</td><td>複数選択 → どれかの × をクリック</td></tr>
+    <tr><td>全部ゴミ箱に送る</td><td>パネル最上部の「🗑 窓口を全部ゴミ箱に送る」</td></tr>
+    <tr><td>全画面プレビュー</td><td>サムネをダブルクリック（Quick Look）</td></tr>
+    <tr><td>検索</td><td>パネル上部の 🔍 にファイル名 or 日付を入力</td></tr>
+    <tr><td>選択を解除</td><td>別の場所のサムネを通常クリック</td></tr>
+  </table>
+  </section>
+
+  <section>
+  <h2>AIエージェント連携（任意）</h2>
+  <p>Claude Code などのAIエージェントに「さっきのスクショ見て」と言うだけで、AIが自分で最新スクショを見つけて開けるようになるコマンド3点セットを同梱しています。</p>
+  <table>
+    <tr><th>コマンド</th><th>ひとこと</th><th>使いどころ</th></tr>
+    <tr><td><code>lastshot</code></td><td>窓口の最新スクショのパスを出す</td><td>「さっきのスクショ見て」</td></tr>
+    <tr><td><code>selfshot</code></td><td>AIが自分で画面を撮る</td><td>「今の画面見て」（<code>--win</code> で前面ウィンドウのみ）</td></tr>
+    <tr><td><code>lastdl</code></td><td>ダウンロードの最新ファイルのパスを出す</td><td>「今落としたやつ見て」</td></tr>
+  </table>
+  <h3>インストール</h3>
+  <p>ターミナルを開いて、解凍したフォルダ内で：</p>
+  <pre>bash エージェント連携/install.sh</pre>
+  <p>これで ①3コマンドが <code>~/bin/</code> に入る ②ターミナル用のPATH設定 ③（y を選ぶと）Claude Code 用の説明が <code>~/.claude/CLAUDE.md</code> に追記され、以後AIが「さっきのスクショ」等の言葉を自動でこのコマンドで解決します。</p>
+  <p>手動で設定したい場合は <code>エージェント連携/CLAUDE_SNIPPET.md</code> の中身を <code>~/.claude/CLAUDE.md</code> に貼り付けてください。</p>
+  <ul>
+    <li>出力形式は「パス TAB 経過時間」（例: <code>/Users/you/Pictures/スクショ窓口/xxx.png　30分前</code>）</li>
+    <li>⚠ <code>selfshot --win</code>（ウィンドウ単位の撮影）のみ Python の pyobjc が必要（<code>pip3 install pyobjc</code>）。全画面の <code>selfshot</code> と <code>lastshot</code> / <code>lastdl</code> は追加インストールなしで動きます</li>
+    <li>⚠ <code>selfshot</code> の初回実行時、macOSが「画面収録」の権限を求めることがあります → システム設定 → プライバシーとセキュリティ → 画面収録 で許可</li>
+  </ul>
+  </section>
+
+  <section>
+  <h2>ホットキー（任意）</h2>
+  <p>好きなキーで窓口を開閉したい場合は、BetterTouchTool や Karabiner-Elements などで、お好みのキーに次のシェルコマンドを割り当てます：</p>
+  <pre>touch "$HOME/Library/Caches/スクショ窓口/.toggle_request"</pre>
+  </section>
+
+  <section>
+  <h2>何が変更されるか（透明性）</h2>
+  <table>
+    <tr><th>項目</th><th>変更前</th><th>変更後</th></tr>
+    <tr><td>スクショの保存先</td><td>デスクトップ</td><td><code>~/Pictures/スクショ窓口/</code></td></tr>
+    <tr><td>撮影直後の純正プレビュー</td><td>表示する</td><td>表示しない（即ファイル保存）</td></tr>
+  </table>
+  <p>この2つを macOS の <code>defaults write</code> で変更するだけです。<b>ほかにシステムへ勝手にインストールされるものはありません。</b>いつでもメニューの「アンインストール」で元に戻せます。</p>
+  </section>
+
+  <section>
+  <h2>アンインストール</h2>
+  <ol>
+    <li>メニューバー 🖼️ → <b>「アンインストール（macOS設定を戻す）」</b> → 「実行」<br>（保存先がデスクトップに戻り、純正プレビューが復活し、アプリが終了します）</li>
+    <li><code>/Applications/スクショ窓口.app</code> をゴミ箱へドラッグ</li>
+  </ol>
+  <p>完全に消したい場合は次のフォルダも削除：</p>
+  <ul>
+    <li><code>~/Pictures/スクショ窓口/</code>（過去のスクショ）</li>
+    <li><code>~/Library/Caches/スクショ窓口/</code>（サムネキャッシュ）</li>
+    <li><code>~/Library/Application Support/スクショ窓口/</code>（インデックス）</li>
+  </ul>
+  <p>AIエージェント連携も入れていた場合は <code>~/bin/lastshot</code> <code>~/bin/selfshot</code> <code>~/bin/lastdl</code> を削除してください。</p>
+  </section>
+
+  <section>
+  <h2>トラブルシューティング</h2>
+  <dl class="qa">
+    <dt>Q1. 「開発元が未確認」で起動できない</dt>
+    <dd>A. <code>/Applications/スクショ窓口.app</code> を<b>右クリック →「開く」</b>で初回起動してください。それでも開かない場合：システム設定 → プライバシーとセキュリティ → 「このまま開く」。</dd>
+    <dt>Q2. 撮影しても窓口に入らない</dt>
+    <dd>A. メニューの「保存先設定を確認」→ <code>~/Pictures/スクショ窓口/</code> と一致しているか確認。ずれていればアプリを再起動すると自動修正されます。直らない場合はターミナルで：
+    <pre>defaults write com.apple.screencapture location ~/Pictures/スクショ窓口
+killall SystemUIServer</pre></dd>
+    <dt>Q3. 窓口が表示されない</dt>
+    <dd>A. メニューバー 🖼️ → 「窓口を開く」 / Dockアイコンクリック。それでも出なければメニュー → 「終了」→ 再起動。</dd>
+    <dt>Q4. 削除したくないのに撮ったスクショが消えた</dt>
+    <dd>A. 削除はゴミ箱に送るだけです。Finder のゴミ箱から復元できます。</dd>
+    <dt>Q5. macOS の元のスクショ動作（デスクトップ保存）に戻したい</dt>
+    <dd>A. メニュー → 「アンインストール（macOS設定を戻す）」を実行。</dd>
+    <dt>Q6. 二重起動の警告が出る</dt>
+    <dd>A. 正常動作です（1つだけ起動するよう制御しています）。古いプロセスが残っている場合はターミナルで：
+    <pre>pkill -f "スクショ窓口"
+rm -f ~/Library/Caches/スクショ窓口/.pid</pre></dd>
+    <dt>Q7. アプリがクラッシュする</dt>
+    <dd>A. ログ <code>~/bin/screenshot_window.log</code> を確認し、配布元に送ってください。</dd>
+  </dl>
+  </section>
+
+  <section>
+  <h2>動作環境</h2>
+  <ul>
+    <li>macOS 13 (Ventura) 以降推奨（macOS 25 / Tahoe で開発）</li>
+    <li>Apple Silicon / Intel 両対応</li>
+    <li>ストレージ：アプリ本体 約73MB、サムネキャッシュ 約1MB / 100枚</li>
+    <li>必要権限：なし（フォルダ書き込みは ~/Pictures, ~/Library 内のみ）</li>
+  </ul>
+  </section>
+
+  <footer>スクショ窓口 v1.1 — © 2026 shimesapo ／ 依存ライブラリ: rumps (MIT) / pyobjc (MIT) / Pillow (HPND) / watchdog (Apache 2.0) ／ 無保証で配布。使用は自己責任で。</footer>
+</div>
+</body>
+</html>

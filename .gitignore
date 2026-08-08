@@ -6,3 +6,4 @@ dist/
 *.egg-info/
 .DS_Store
 icon.iconset/
+*_old_v1.0/

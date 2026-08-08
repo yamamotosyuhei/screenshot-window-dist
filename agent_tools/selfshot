@@ -1,0 +1,55 @@
+#!/bin/bash
+# selfshot — エージェントが自分で画面を撮ってパスを出力する
+# 使い方: selfshot                → 全画面
+#         selfshot --win          → 前面アプリの最前面ウィンドウのみ
+#         selfshot --win Safari   → 指定アプリの最前面ウィンドウのみ
+# 保存先はスクショ窓口フォルダ（窓口アプリのサムネにも載る・lastshotでも拾える）
+DIR="$HOME/Pictures/スクショ窓口"
+mkdir -p "$DIR"
+ts=$(date '+%Y-%m-%d %H.%M.%S')
+out="$DIR/selfshot $ts.png"
+
+if [ "$1" = "--win" ]; then
+  if ! python3 -c "import Quartz" 2>/dev/null; then
+    echo "--win にはPythonのpyobjcが必要です（ pip3 install pyobjc で入ります）。" >&2
+    echo "全画面版はそのまま使えます: selfshot" >&2
+    exit 1
+  fi
+  app="${2:-}"
+  wid=$(python3 - "$app" <<'PY'
+import sys
+import Quartz
+from AppKit import NSWorkspace
+
+name = sys.argv[1] if len(sys.argv) > 1 else ""
+if name:
+    pid = None
+    for a in NSWorkspace.sharedWorkspace().runningApplications():
+        if a.localizedName() and a.localizedName().lower() == name.lower():
+            pid = a.processIdentifier()
+            break
+    if pid is None:
+        sys.stderr.write("アプリが見つかりません: %s\n" % name)
+        sys.exit(1)
+else:
+    pid = NSWorkspace.sharedWorkspace().frontmostApplication().processIdentifier()
+
+wins = Quartz.CGWindowListCopyWindowInfo(
+    Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
+    Quartz.kCGNullWindowID)
+for w in wins:
+    if w.get('kCGWindowOwnerPID') == pid and w.get('kCGWindowLayer', 0) == 0:
+        print(w['kCGWindowNumber'])
+        break
+else:
+    sys.stderr.write("ウィンドウが見つかりません (pid=%s)\n" % pid)
+    sys.exit(1)
+PY
+)
+  [ -z "$wid" ] && exit 1
+  screencapture -x -o -l "$wid" "$out" || exit 1
+else
+  screencapture -x "$out" || exit 1
+fi
+
+echo "$out"

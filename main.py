@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """スクショ窓口 メニューバーアプリ（配布版）"""
+import fcntl
 import os
 import subprocess
 import sys
@@ -16,22 +17,28 @@ from panel import ScreenshotPanel
 TOGGLE_FLAG = paths.CACHE_DIR / ".toggle_request"
 # 二重起動防止用のPIDロックファイル
 PID_LOCK = paths.CACHE_DIR / ".pid"
+_lock_fd = None  # flockを保持し続けるためのfd（プロセス生存中は開いたままにする）
 # 初回セットアップ完了フラグ（同意ダイアログを2回目以降出さないため）
 SETUP_FLAG = paths.SUPPORT_DIR / "setup_completed.flag"
 
 
 def _acquire_lock_or_exit() -> None:
-    """既存プロセスが生きていれば終了する。生きていなければPIDを書いてロック取得"""
+    """flockで二重起動を防ぐ。前のプロセスが死ねばOSがロックを自動解放するため、
+    PID再利用やクラッシュ残骸での誤判定（開いた瞬間に落ちる）を起こさない。"""
+    global _lock_fd
     paths.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    if PID_LOCK.exists():
-        try:
-            old_pid = int(PID_LOCK.read_text().strip())
-            os.kill(old_pid, 0)
-            print(f"既に起動中（PID {old_pid}）。新規起動を中止します。")
-            sys.exit(0)
-        except (ValueError, ProcessLookupError, PermissionError):
-            pass
-    PID_LOCK.write_text(str(os.getpid()))
+    _lock_fd = open(PID_LOCK, "a+")
+    try:
+        fcntl.flock(_lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        _lock_fd.seek(0)
+        running_pid = _lock_fd.read().strip()
+        print(f"既に起動中（PID {running_pid}）。新規起動を中止します。")
+        sys.exit(0)
+    _lock_fd.seek(0)
+    _lock_fd.truncate()
+    _lock_fd.write(str(os.getpid()))
+    _lock_fd.flush()
 
 
 def log(msg: str) -> None:
